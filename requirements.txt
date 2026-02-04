@@ -1,0 +1,4 @@
+customtkinter
+CTkMessagebox
+pillow
+pyinstaller
