@@ -6,10 +6,10 @@ setlocal
 :: ============================================================================
 
 :: --- Configuration ---
-set REPO_URL=https://github.com/your-username/your-repo.git
+set REPO_URL=https://github.com/AndiFB-5/AppPrueba.git
 set REPO_DIR=stock-control-app
 set SCRIPT_NAME=main.py
-set ICON_PATH=assets/icon.ico
+
 
 :: --- Prerequisites Check ---
 echo Checking prerequisites...
@@ -52,7 +52,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo --- Building Executable ---
-pyinstaller --onefile --windowed --name="StockControl" --icon="%ICON_PATH%" "%SCRIPT_NAME%"
+pyinstaller --onefile --windowed --name="StockControl" "%SCRIPT_NAME%"
 if %errorlevel% neq 0 (
     echo Error: PyInstaller failed to build the executable.
     goto :eof
