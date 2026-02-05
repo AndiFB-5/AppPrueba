@@ -4,6 +4,47 @@ from CTkMessagebox import CTkMessagebox
 import os
 import csv
 from datetime import datetime
+import platform
+import subprocess
+from PIL import Image
+
+class PaymentMethodDialog(ctk.CTkToplevel):
+    def __init__(self, master):
+        super().__init__(master)
+
+        self.title("Seleccionar Método de Pago")
+        self.geometry("300x150")
+        self.master = master
+        self.result = None
+
+        self.label = ctk.CTkLabel(self, text="Seleccione el método de pago:")
+        self.label.pack(pady=10)
+
+        self.payment_method_var = ctk.StringVar(value="Efectivo")
+
+        self.radio_cash = ctk.CTkRadioButton(self, text="Efectivo", variable=self.payment_method_var, value="Efectivo")
+        self.radio_cash.pack(pady=5)
+
+        self.radio_transfer = ctk.CTkRadioButton(self, text="Transferencia", variable=self.payment_method_var, value="Transferencia")
+        self.radio_transfer.pack(pady=5)
+
+        self.ok_button = ctk.CTkButton(self, text="Aceptar", command=self.ok_event)
+        self.ok_button.pack(pady=10)
+        
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self.cancel_event)
+        self.wait_window(self)
+
+    def ok_event(self):
+        self.result = self.payment_method_var.get()
+        self.destroy()
+
+    def cancel_event(self):
+        self.result = None
+        self.destroy()
+
+    def get_input(self):
+        return self.result
 
 class CreateOrderWindow(ctk.CTkToplevel):
     def __init__(self, master, order_data=None):
@@ -35,9 +76,15 @@ class CreateOrderWindow(ctk.CTkToplevel):
         if not self.is_edit_mode:
             ctk.CTkLabel(top_frame, text="Nombre del Cliente:").pack(side="left", padx=(10,0))
             self.customer_name_entry = ctk.CTkEntry(top_frame, placeholder_text="Nombre")
-            self.customer_name_entry.pack(side="left", expand=True, padx=10)
+            self.customer_name_entry.pack(side="left", fill="x", expand=True, padx=10)
+            self.es_socio_var = ctk.IntVar()
+            self.socio_checkbox = ctk.CTkCheckBox(top_frame, text="Socio", variable=self.es_socio_var, command=self.update_order_summary)
+            self.socio_checkbox.pack(side="left", padx=10)
         else:
-             ctk.CTkLabel(top_frame, text=f"Cliente: {self.order_data.get('customer_name', 'N/A')}", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=10)
+            ctk.CTkLabel(top_frame, text=f"Cliente: {self.order_data.get('customer_name', 'N/A')}", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=10)
+            self.es_socio_var = ctk.IntVar(value=self.order_data.get('es_socio', 0))
+            self.socio_checkbox = ctk.CTkCheckBox(top_frame, text="Socio", variable=self.es_socio_var, command=self.update_order_summary)
+            self.socio_checkbox.pack(side="left", padx=10)
 
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -144,6 +191,11 @@ class CreateOrderWindow(ctk.CTkToplevel):
                     total_price += line_total
                     self.summary_text.insert("end", f"{item['name']} x{item['quantity']} - ${line_total:.2f}\n")
         
+        if self.es_socio_var.get() == 1:
+            discount = total_price * 0.15
+            total_price *= 0.85
+            self.summary_text.insert("end", f"\nDescuento Socio (15%): -${discount:.2f}\n")
+
         self.total_price_label.configure(text=f"Total: ${total_price:.2f}")
         self.summary_text.configure(state="disabled")
 
@@ -153,14 +205,14 @@ class CreateOrderWindow(ctk.CTkToplevel):
             product_items_for_db.append((pid, item["quantity"], item["price"]))
         
         success = False
-        order_id = None
+        es_socio = self.es_socio_var.get()
+
         if self.is_edit_mode:
-            if not product_items_for_db: # Allow empty order in edit mode (means delete)
-                # For now, we just close the order. A better implementation might ask for confirmation.
-                database.update_order_status(self.order_data['id'], 2) # 2 = cancelled
+            if not product_items_for_db:
+                database.update_order_status_and_payment_method(self.order_data['id'], 2, None) # 2 = cancelled
                 success = True
             else:
-                success = database.update_order(self.order_data['id'], product_items_for_db, self.order_data)
+                success = database.update_order(self.order_data['id'], product_items_for_db, self.order_data, es_socio)
                 if success:
                     CTkMessagebox(master=self.master, title="Éxito", message=f"Pedido #{self.order_data['id']} actualizado con éxito.").get()
                 else:
@@ -175,7 +227,7 @@ class CreateOrderWindow(ctk.CTkToplevel):
                 CTkMessagebox(master=self, title="Error", message="El nombre del cliente no puede estar vacío.", icon="warning").get()
                 return
                 
-            order_id = database.add_order(product_items_for_db, customer_name)
+            order_id = database.add_order(product_items_for_db, customer_name, es_socio)
             if order_id:
                 CTkMessagebox(master=self.master, title="Éxito", message=f"Pedido #{order_id} creado con éxito.").get()
                 success = True
@@ -204,7 +256,7 @@ class App(ctk.CTk):
 
         # Create sidebar frame with widgets
         self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
-        self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
+        self.sidebar_frame.grid(row=0, column=0, rowspan=6, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(4, weight=1)
 
         self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="Control de Stock", font=ctk.CTkFont(size=20, weight="bold"))
@@ -216,6 +268,11 @@ class App(ctk.CTk):
         self.sidebar_button_2.grid(row=2, column=0, padx=20, pady=10)
         self.sidebar_button_3 = ctk.CTkButton(self.sidebar_frame, text="Resumen de Ventas", command=lambda: self.change_tab("Resumen de Ventas"))
         self.sidebar_button_3.grid(row=3, column=0, padx=20, pady=10)
+
+        # Add image to sidebar
+        self.sidebar_image = ctk.CTkImage(Image.open("icon.png"), size=(160, 200))
+        self.sidebar_image_label = ctk.CTkLabel(self.sidebar_frame, text="", image=self.sidebar_image)
+        self.sidebar_image_label.grid(row=4, column=0, pady=(30, 0), sticky="n") # Adjust row and pady as needed
 
         # Create tabview
         self.tabview = ctk.CTkTabview(self)
@@ -294,8 +351,14 @@ class App(ctk.CTk):
         self.total_sales_label = ctk.CTkLabel(self.sales_frame, text="Total de Ventas: $0.00", font=ctk.CTkFont(size=24, weight="bold"))
         self.total_sales_label.pack(pady=20)
 
+        self.total_cash_sales_label = ctk.CTkLabel(self.sales_frame, text="Total en Efectivo: $0.00", font=ctk.CTkFont(size=20))
+        self.total_cash_sales_label.pack(pady=10)
+
         self.export_button = ctk.CTkButton(self.sales_frame, text="Exportar y Limpiar Pedidos", command=self.export_and_clear_orders_event)
         self.export_button.pack(pady=10)
+
+        self.open_csv_folder_button = ctk.CTkButton(self.sales_frame, text="Abrir Carpeta de CSVs", command=self.open_csv_folder)
+        self.open_csv_folder_button.pack(pady=10)
 
         self.load_products() # Load products when app starts
         self.load_orders() # Load orders when app starts
@@ -464,6 +527,8 @@ class App(ctk.CTk):
         for i, order in enumerate(orders):
             order_id = order["id"]
             total_price = order["total_price"]
+            if order.get("es_socio") == 1:
+                total_price *= 0.85
 
             items_str = ", ".join([f"{item['product_name']} (x{item['quantity']})" for item in order["items"]])
 
@@ -481,10 +546,27 @@ class App(ctk.CTk):
             close_button.pack(side="left", padx=2)
 
     def close_order(self, order_id):
-        database.update_order_status(order_id, 1) # Set status to completed
-        CTkMessagebox(master=self, title="Éxito", message=f"Pedido #{order_id} cerrado con éxito.").get()
-        self.load_orders() # Refresh pending orders
-        self.load_sales_summary() # Refresh sales summary
+        dialog = PaymentMethodDialog(self)
+        payment_method = dialog.get_input()
+        
+        if payment_method:
+            database.update_order_status_and_payment_method(order_id, 1, payment_method) # Set status to completed
+            CTkMessagebox(master=self, title="Éxito", message=f"Pedido #{order_id} cerrado con éxito.").get()
+            self.load_orders() # Refresh pending orders
+            self.load_sales_summary() # Refresh sales summary
+
+    def open_csv_folder(self):
+        csv_dir = "csv_exports"
+        # Create directory if it doesn't exist
+        os.makedirs(csv_dir, exist_ok=True)
+        
+        system = platform.system()
+        if system == "Windows":
+            subprocess.run(["start", csv_dir], shell=True)
+        elif system == "Darwin": # macOS
+            subprocess.run(["open", csv_dir])
+        else: # Linux
+            subprocess.run(["xdg-open", csv_dir])
 
     def export_and_clear_orders_event(self):
         pending_orders = database.get_orders(status=0)
@@ -507,7 +589,7 @@ class App(ctk.CTk):
 
         try:
             with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = ['order_id', 'customer_name', 'order_date', 'product_name', 'quantity', 'item_price', 'total_order_price']
+                fieldnames = ['order_id', 'customer_name', 'order_date', 'metodo_pago', 'product_name', 'quantity', 'item_price', 'total_order_price']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
                 writer.writeheader()
@@ -517,6 +599,7 @@ class App(ctk.CTk):
                             'order_id': order['id'],
                             'customer_name': order.get('customer_name', 'N/A'),
                             'order_date': order['order_date'],
+                            'metodo_pago': order.get('metodo_pago', 'N/A'),
                             'product_name': item['product_name'],
                             'quantity': item['quantity'],
                             'item_price': item['item_price'],
@@ -537,7 +620,9 @@ class App(ctk.CTk):
 
     def load_sales_summary(self):
         total_sales = database.get_total_sales()
+        total_cash_sales = database.get_total_sales_by_payment_method("Efectivo")
         self.total_sales_label.configure(text=f"Total de Ventas: ${total_sales:.2f}")
+        self.total_cash_sales_label.configure(text=f"Total en Efectivo: ${total_cash_sales:.2f}")
 
     def change_tab(self, tab_name):
         self.tabview.set(tab_name)

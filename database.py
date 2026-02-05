@@ -32,6 +32,18 @@ def init_db():
         c.execute("SELECT customer_name FROM orders LIMIT 1")
     except sqlite3.OperationalError:
         c.execute("ALTER TABLE orders ADD COLUMN customer_name TEXT")
+    
+    # Add metodo_pago column to orders table if it doesn't exist
+    try:
+        c.execute("SELECT metodo_pago FROM orders LIMIT 1")
+    except sqlite3.OperationalError:
+        c.execute("ALTER TABLE orders ADD COLUMN metodo_pago TEXT")
+
+    # Add es_socio column to orders table if it doesn't exist
+    try:
+        c.execute("SELECT es_socio FROM orders LIMIT 1")
+    except sqlite3.OperationalError:
+        c.execute("ALTER TABLE orders ADD COLUMN es_socio INTEGER DEFAULT 0")
 
     # Create order_items table to link products to orders
     c.execute("""
@@ -90,12 +102,12 @@ def update_product(product_id, name, price, stock):
     finally:
         conn.close()
 
-def add_order(product_items, customer_name):
+def add_order(product_items, customer_name, es_socio):
     # product_items is a list of tuples: (product_id, quantity, item_price_at_order)
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO orders (customer_name) VALUES (?)", (customer_name,))
+        c.execute("INSERT INTO orders (customer_name, es_socio) VALUES (?, ?)", (customer_name, es_socio))
         order_id = c.lastrowid
         
         for product_id, quantity, item_price in product_items:
@@ -123,6 +135,8 @@ def get_orders(status=None):
             o.order_date,
             o.status,
             o.customer_name,
+            o.metodo_pago,
+            o.es_socio,
             p.id,
             p.name,
             oi.quantity,
@@ -140,13 +154,15 @@ def get_orders(status=None):
 
     # Group order items by order ID
     orders_grouped = {}
-    for order_id, order_date, order_status, customer_name, product_id, product_name, quantity, item_price in orders_data:
+    for order_id, order_date, order_status, customer_name, metodo_pago, es_socio, product_id, product_name, quantity, item_price in orders_data:
         if order_id not in orders_grouped:
             orders_grouped[order_id] = {
                 "id": order_id,
                 "order_date": order_date,
                 "status": order_status,
                 "customer_name": customer_name,
+                "metodo_pago": metodo_pago,
+                "es_socio": es_socio,
                 "items": [],
                 "total_price": 0
             }
@@ -160,18 +176,41 @@ def get_orders(status=None):
     
     return list(orders_grouped.values())
 
-def update_order_status(order_id, status):
+def update_order_status_and_payment_method(order_id, status, metodo_pago):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
-    c.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
+    c.execute("UPDATE orders SET status = ?, metodo_pago = ? WHERE id = ?", (status, metodo_pago, order_id))
     conn.commit()
     conn.close()
+
+def get_total_sales_by_payment_method(metodo_pago):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("""
+        SELECT SUM(
+            CASE 
+                WHEN o.es_socio = 1 THEN (oi.quantity * oi.item_price * 0.85)
+                ELSE (oi.quantity * oi.item_price)
+            END
+        )
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.order_id
+        WHERE o.status = 1 AND o.metodo_pago = ?
+    """, (metodo_pago,))
+    total_sales = c.fetchone()[0]
+    conn.close()
+    return total_sales if total_sales else 0
 
 def get_total_sales():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     c.execute("""
-        SELECT SUM(oi.quantity * oi.item_price)
+        SELECT SUM(
+            CASE 
+                WHEN o.es_socio = 1 THEN (oi.quantity * oi.item_price * 0.85)
+                ELSE (oi.quantity * oi.item_price)
+            END
+        )
         FROM orders o
         JOIN order_items oi ON o.id = oi.order_id
         WHERE o.status = 1  -- Only completed orders
@@ -180,12 +219,15 @@ def get_total_sales():
     conn.close()
     return total_sales if total_sales else 0
 
-def update_order(order_id, new_items, original_order_data):
+def update_order(order_id, new_items, original_order_data, es_socio):
     # new_items is a list of tuples: (product_id, quantity, item_price)
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     try:
-        # --- 1. Get original items and calculate stock changes ---
+        # --- 1. Update es_socio status ---
+        c.execute("UPDATE orders SET es_socio = ? WHERE id = ?", (es_socio, order_id))
+
+        # --- 2. Get original items and calculate stock changes ---
         original_items = {item['product_id']: item['quantity'] for item in original_order_data['items']}
         new_items_dict = {pid: qty for pid, qty, price in new_items}
 
@@ -199,7 +241,7 @@ def update_order(order_id, new_items, original_order_data):
             if stock_change != 0:
                 c.execute("UPDATE products SET stock = stock + ? WHERE id = ?", (stock_change, pid))
 
-        # --- 2. Update order items ---
+        # --- 3. Update order items ---
         # Delete items that are no longer in the order
         pids_to_delete = set(original_items.keys()) - set(new_items_dict.keys())
         if pids_to_delete:

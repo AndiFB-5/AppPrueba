@@ -1,0 +1,9 @@
+order_id,customer_name,order_date,metodo_pago,product_name,quantity,item_price,total_order_price
+25,nacho ,2026-02-05 15:40:16,Transferencia,Hnk,3,9000.0,27000.0
+24,Nacho P,2026-02-05 14:20:56,Efectivo,Empanada Carne,2,3000.0,17000.0
+24,Nacho P,2026-02-05 14:20:56,Efectivo,Empanada JyQ ,1,2000.0,17000.0
+24,Nacho P,2026-02-05 14:20:56,Efectivo,Hnk,1,9000.0,17000.0
+23,Alfre,2026-02-05 14:07:21,Efectivo,Hnk,6,9000.0,66000.0
+23,Alfre,2026-02-05 14:07:21,Efectivo,Malrboros,1,12000.0,66000.0
+22,J,2026-02-05 14:05:52,Transferencia,Hnk,2,9000.0,20000.0
+22,J,2026-02-05 14:05:52,Transferencia,Empanada JyQ ,1,2000.0,20000.0

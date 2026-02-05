@@ -1,0 +1,6 @@
+order_id,customer_name,order_date,product_name,quantity,item_price,total_order_price
+21,NachoP,2026-02-04 21:55:40,Hnk,2,9000.0,62000.0
+21,NachoP,2026-02-04 21:55:40,Empanada JyQ ,4,2000.0,62000.0
+21,NachoP,2026-02-04 21:55:40,Empanada de verdura,1,2000.0,62000.0
+21,NachoP,2026-02-04 21:55:40,Pizza 300,1,16000.0,62000.0
+21,NachoP,2026-02-04 21:55:40,Vermut,2,9000.0,62000.0

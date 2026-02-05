@@ -1,0 +1,7 @@
+order_id,customer_name,order_date,metodo_pago,product_name,quantity,item_price,total_order_price
+27,pepe,2026-02-05 15:42:49,Efectivo,Empanada JyQ ,1,2000.0,27000.0
+27,pepe,2026-02-05 15:42:49,Efectivo,Empanada Carne,1,3000.0,27000.0
+27,pepe,2026-02-05 15:42:49,Efectivo,Empanada Capresse,1,2000.0,27000.0
+27,pepe,2026-02-05 15:42:49,Efectivo,Empanada de verdura,1,2000.0,27000.0
+27,pepe,2026-02-05 15:42:49,Efectivo,Hnk,2,9000.0,27000.0
+26,Andi,2026-02-05 15:42:25,Transferencia,Hnk,6,9000.0,54000.0
