@@ -1,6 +1,6 @@
 import customtkinter as ctk
 import database
-from CTkMessagebox import CTkMessagebox
+
 import os
 import csv
 from datetime import datetime
@@ -88,16 +88,17 @@ class CreateOrderWindow(ctk.CTkToplevel):
 
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        main_frame.grid_columnconfigure(0, weight=1)
-        main_frame.grid_columnconfigure(1, weight=1)
+        main_frame.grid_columnconfigure(0, weight=3) # Product list gets more space
+        main_frame.grid_columnconfigure(1, weight=1) # Summary is narrower
         main_frame.grid_rowconfigure(0, weight=1)
 
         product_list_frame = ctk.CTkScrollableFrame(main_frame, label_text="Productos Disponibles")
         product_list_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-        order_summary_frame = ctk.CTkFrame(main_frame, width=300)
+        order_summary_frame = ctk.CTkFrame(main_frame, width=250) # Reduced width
         order_summary_frame.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
         order_summary_frame.grid_rowconfigure(1, weight=1)
+        order_summary_frame.grid_propagate(False) # Force width constraint
 
         buttons_frame = ctk.CTkFrame(self)
         buttons_frame.pack(fill="x", padx=10, pady=(0, 10))
@@ -106,57 +107,84 @@ class CreateOrderWindow(ctk.CTkToplevel):
         products = database.get_products()
         self.product_labels = {} # To update quantity labels
         
-        for i, product in enumerate(products):
-            product_id, name, price, stock = product
+        # Group products by category
+        categories = {}
+        for product in products:
+            category = product[4] or "Sin Categoría"
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(product)
+
+        for category_name, category_products in categories.items():
+            # Category Header
+            category_label = ctk.CTkLabel(product_list_frame, text=category_name, font=ctk.CTkFont(size=13, weight="bold"), anchor="w")
+            category_label.pack(fill="x", padx=10, pady=(8, 2))
             
-            product_frame = ctk.CTkFrame(product_list_frame)
-            product_frame.pack(fill="x", expand=True, padx=5, pady=5)
-            product_frame.grid_columnconfigure(0, weight=1)
-            
-            ctk.CTkLabel(product_frame, text=name, font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, sticky="w")
-            
-            initial_quantity = self.order_items.get(product_id, {}).get("quantity", 0)
-            available_stock = stock + initial_quantity
-            ctk.CTkLabel(product_frame, text=f"${price:.2f} (Stock: {available_stock})", font=ctk.CTkFont(size=10)).grid(row=1, column=0, sticky="w")
+            # Grid frame for products in this category (3 columns)
+            cat_grid_frame = ctk.CTkFrame(product_list_frame, fg_color="transparent")
+            cat_grid_frame.pack(fill="x", padx=5, pady=2)
+            cat_grid_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-            quantity_frame = ctk.CTkFrame(product_frame)
-            quantity_frame.grid(row=0, column=1, rowspan=2, sticky="e")
+            for idx, product in enumerate(category_products):
+                product_id, name, price, stock, category = product
+                
+                # Use grid for 3 columns
+                row_idx = idx // 3
+                col_idx = idx % 3
+                
+                product_frame = ctk.CTkFrame(cat_grid_frame)
+                product_frame.grid(row=row_idx, column=col_idx, padx=2, pady=1, sticky="nsew")
+                product_frame.grid_columnconfigure(0, weight=1)
+                
+                # Only show the name, very compact
+                name_label = ctk.CTkLabel(product_frame, text=name, font=ctk.CTkFont(size=11, weight="bold"), anchor="w")
+                name_label.grid(row=0, column=0, sticky="w", padx=4, pady=2)
+                
+                initial_quantity = self.order_items.get(product_id, {}).get("quantity", 0)
+                available_stock = stock + initial_quantity
 
-            quantity_label = ctk.CTkLabel(quantity_frame, text=str(initial_quantity), width=30)
-            quantity_label.pack(side="left", padx=5)
-            self.product_labels[product_id] = quantity_label
+                quantity_frame = ctk.CTkFrame(product_frame, fg_color="transparent")
+                quantity_frame.grid(row=0, column=1, sticky="e", padx=2)
 
-            def create_callbacks(pid, pname, pprice, pstock, qlabel):
-                def increment():
-                    current_quantity = self.order_items.get(pid, {}).get("quantity", 0)
-                    
-                    adjusted_stock = pstock
-                    if self.is_edit_mode:
-                        for item in self.order_data['items']:
-                            if item['product_id'] == pid:
-                                adjusted_stock += item['quantity']
-                                break
-                    
-                    if current_quantity < adjusted_stock:
-                        if pid not in self.order_items:
-                            self.order_items[pid] = {"name": pname, "quantity": 0, "price": pprice}
-                        self.order_items[pid]["quantity"] += 1
-                        qlabel.configure(text=str(self.order_items[pid]["quantity"]))
-                        self.update_order_summary()
+                def create_callbacks(pid, pname, pprice, pstock, qlabel):
+                    def increment(event=None):
+                        current_quantity = self.order_items.get(pid, {}).get("quantity", 0)
+                        
+                        adjusted_stock = pstock
+                        if self.is_edit_mode:
+                            for item in self.order_data['items']:
+                                if item['product_id'] == pid:
+                                    adjusted_stock += item['quantity']
+                                    break
+                        
+                        if current_quantity < adjusted_stock:
+                            if pid not in self.order_items:
+                                self.order_items[pid] = {"name": pname, "quantity": 0, "price": pprice}
+                            self.order_items[pid]["quantity"] += 1
+                            qlabel.configure(text=str(self.order_items[pid]["quantity"]))
+                            self.update_order_summary()
 
-                def decrement():
-                    if pid in self.order_items and self.order_items[pid]["quantity"] > 0:
-                        self.order_items[pid]["quantity"] -= 1
-                        qlabel.configure(text=str(self.order_items[pid]["quantity"]))
-                        if self.order_items[pid]["quantity"] == 0:
-                            del self.order_items[pid]
-                        self.update_order_summary()
-                return increment, decrement
+                    def decrement(event=None):
+                        if pid in self.order_items and self.order_items[pid]["quantity"] > 0:
+                            self.order_items[pid]["quantity"] -= 1
+                            qlabel.configure(text=str(self.order_items[pid]["quantity"]))
+                            if self.order_items[pid]["quantity"] == 0:
+                                del self.order_items[pid]
+                            self.update_order_summary()
+                    return increment, decrement
 
-            increment_callback, decrement_callback = create_callbacks(product_id, name, price, stock, quantity_label)
+                quantity_label = ctk.CTkLabel(quantity_frame, text=str(initial_quantity), width=20, font=ctk.CTkFont(size=11, weight="bold"))
+                self.product_labels[product_id] = quantity_label
+                
+                increment_callback, decrement_callback = create_callbacks(product_id, name, price, stock, quantity_label)
 
-            ctk.CTkButton(quantity_frame, text="+", width=30, command=increment_callback).pack(side="left")
-            ctk.CTkButton(quantity_frame, text="-", width=30, command=decrement_callback).pack(side="left")
+                # Bind events to every part of the card
+                for widget in [product_frame, name_label, quantity_frame, quantity_label]:
+                    widget.bind("<Button-1>", increment_callback)
+                    widget.bind("<Button-2>", decrement_callback)
+                    widget.bind("<Button-3>", decrement_callback)
+
+                quantity_label.pack(padx=2)
 
         # --- Order Summary ---
         ctk.CTkLabel(order_summary_frame, text="Resumen del Pedido", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, padx=10, pady=10)
@@ -202,10 +230,15 @@ class CreateOrderWindow(ctk.CTkToplevel):
     def confirm_action(self):
         product_items_for_db = []
         for pid, item in self.order_items.items():
-            product_items_for_db.append((pid, item["quantity"], item["price"]))
+            if item["quantity"] > 0:
+                product_items_for_db.append((pid, item["quantity"], item["price"]))
         
         success = False
         es_socio = self.es_socio_var.get()
+        
+        # Reset visual feedback
+        if not self.is_edit_mode:
+            self.customer_name_entry.configure(border_color=["#979DA2", "#565B5E"]) # Default colors
 
         if self.is_edit_mode:
             if not product_items_for_db:
@@ -213,26 +246,24 @@ class CreateOrderWindow(ctk.CTkToplevel):
                 success = True
             else:
                 success = database.update_order(self.order_data['id'], product_items_for_db, self.order_data, es_socio)
-                if success:
-                    CTkMessagebox(master=self.master, title="Éxito", message=f"Pedido #{self.order_data['id']} actualizado con éxito.").get()
-                else:
-                    CTkMessagebox(master=self, title="Error", message="No se pudo actualizar el pedido.", icon="cancel").get()
         else:
-            if not product_items_for_db:
-                CTkMessagebox(master=self, title="Error", message="No se puede crear un pedido vacío.", icon="warning").get()
-                return
-            
             customer_name = self.customer_name_entry.get()
+            
+            # Validation with visual feedback
+            valid = True
             if not customer_name:
-                CTkMessagebox(master=self, title="Error", message="El nombre del cliente no puede estar vacío.", icon="warning").get()
-                return
-                
-            order_id = database.add_order(product_items_for_db, customer_name, es_socio)
-            if order_id:
-                CTkMessagebox(master=self.master, title="Éxito", message=f"Pedido #{order_id} creado con éxito.").get()
-                success = True
-            else:
-                CTkMessagebox(master=self, title="Error", message="No se pudo crear el pedido.", icon="cancel").get()
+                self.customer_name_entry.configure(border_color="red")
+                valid = False
+            
+            if not product_items_for_db:
+                # We could highlight the product list frame, but just preventing action is usually enough
+                # for now let's just focus on the name entry which is the most common miss
+                valid = False
+
+            if valid:
+                order_id = database.add_order(product_items_for_db, customer_name, es_socio)
+                if order_id is not None:
+                    success = True
         
         if success:
             self.master.load_orders()
@@ -306,8 +337,15 @@ class App(ctk.CTk):
         self.product_stock_entry = ctk.CTkEntry(self.products_frame, placeholder_text="0")
         self.product_stock_entry.grid(row=2, column=1, padx=10, pady=5, sticky="ew")
 
+        self.product_category_label = ctk.CTkLabel(self.products_frame, text="Categoría:")
+        self.product_category_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        self.product_categories = ["Pizzas", "Empanadas", "Bebidas"]
+        self.product_category_option = ctk.CTkOptionMenu(self.products_frame, values=self.product_categories)
+        self.product_category_option.grid(row=3, column=1, padx=10, pady=5, sticky="ew")
+        self.product_category_option.set("Pizzas") # Default value
+
         buttons_frame = ctk.CTkFrame(self.products_frame)
-        buttons_frame.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+        buttons_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
 
         self.add_product_button = ctk.CTkButton(buttons_frame, text="Agregar Producto", command=self.add_product_event)
         self.add_product_button.pack(side="left", expand=True, padx=5)
@@ -322,8 +360,8 @@ class App(ctk.CTk):
 
         # Frame for product list
         self.product_list_frame = ctk.CTkScrollableFrame(self.products_frame, label_text="Lista de Productos")
-        self.product_list_frame.grid(row=4, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
-        self.products_frame.grid_rowconfigure(4, weight=1) # Make the product list frame expand
+        self.product_list_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        self.products_frame.grid_rowconfigure(5, weight=1) # Make the product list frame expand
         self.products_frame.grid_columnconfigure(1, weight=1) # Make the entry fields expand
 
         # =========================================================================================================
@@ -368,37 +406,45 @@ class App(ctk.CTk):
         name = self.product_name_entry.get()
         price_str = self.product_price_entry.get()
         stock_str = self.product_stock_entry.get()
+        category = self.product_category_option.get()
 
+        # Reset colors
+        self.product_name_entry.configure(border_color=["#979DA2", "#565B5E"])
+        self.product_price_entry.configure(border_color=["#979DA2", "#565B5E"])
+        self.product_stock_entry.configure(border_color=["#979DA2", "#565B5E"])
+
+        valid = True
         if not name:
-            CTkMessagebox(master=self, title="Error", message="El nombre del producto no puede estar vacío.").get()
-            return
+            self.product_name_entry.configure(border_color="red")
+            valid = False
 
         try:
             price = float(price_str)
             if price < 0:
-                CTkMessagebox(master=self, title="Error", message="El precio no puede ser negativo.").get()
-                return
+                self.product_price_entry.configure(border_color="red")
+                valid = False
         except ValueError:
-            CTkMessagebox(master=self, title="Error", message="El precio debe ser un número válido.").get()
-            return
+            self.product_price_entry.configure(border_color="red")
+            valid = False
         
         try:
             stock = int(stock_str)
             if stock < 0:
-                CTkMessagebox(master=self, title="Error", message="El stock no puede ser negativo.").get()
-                return
+                self.product_stock_entry.configure(border_color="red")
+                valid = False
         except ValueError:
-            CTkMessagebox(master=self, title="Error", message="El stock debe ser un número entero válido.").get()
+            self.product_stock_entry.configure(border_color="red")
+            valid = False
+
+        if not valid:
             return
 
-        if database.add_product(name, price, stock):
-            CTkMessagebox(master=self, title="Éxito", message=f"Producto '{name}' agregado con éxito.").get()
+        if database.add_product(name, price, stock, category):
             self.product_name_entry.delete(0, ctk.END)
             self.product_price_entry.delete(0, ctk.END)
             self.product_stock_entry.delete(0, ctk.END)
+            self.product_category_option.set("Pizzas") # Reset to default
             self.load_products() # Refresh the list
-        else:
-            CTkMessagebox(master=self, title="Error", message=f"No se pudo agregar el producto '{name}'. Ya existe un producto con ese nombre.").get()
 
     def update_product_event(self):
         if self.selected_product_id is None:
@@ -407,35 +453,42 @@ class App(ctk.CTk):
         name = self.product_name_entry.get()
         price_str = self.product_price_entry.get()
         stock_str = self.product_stock_entry.get()
+        category = self.product_category_option.get()
 
+        # Reset colors
+        self.product_name_entry.configure(border_color=["#979DA2", "#565B5E"])
+        self.product_price_entry.configure(border_color=["#979DA2", "#565B5E"])
+        self.product_stock_entry.configure(border_color=["#979DA2", "#565B5E"])
+
+        valid = True
         if not name:
-            CTkMessagebox(master=self, title="Error", message="El nombre del producto no puede estar vacío.").get()
-            return
+            self.product_name_entry.configure(border_color="red")
+            valid = False
 
         try:
             price = float(price_str)
             if price < 0:
-                CTkMessagebox(master=self, title="Error", message="El precio no puede ser negativo.").get()
-                return
+                self.product_price_entry.configure(border_color="red")
+                valid = False
         except ValueError:
-            CTkMessagebox(master=self, title="Error", message="El precio debe ser un número válido.").get()
-            return
+            self.product_price_entry.configure(border_color="red")
+            valid = False
         
         try:
             stock = int(stock_str)
             if stock < 0:
-                CTkMessagebox(master=self, title="Error", message="El stock no puede ser negativo.").get()
-                return
+                self.product_stock_entry.configure(border_color="red")
+                valid = False
         except ValueError:
-            CTkMessagebox(master=self, title="Error", message="El stock debe ser un número entero válido.").get()
+            self.product_stock_entry.configure(border_color="red")
+            valid = False
+
+        if not valid:
             return
 
-        if database.update_product(self.selected_product_id, name, price, stock):
-            CTkMessagebox(master=self, title="Éxito", message=f"Producto '{name}' actualizado con éxito.").get()
+        if database.update_product(self.selected_product_id, name, price, stock, category):
             self.cancel_edit_event() # Reset the form
             self.load_products() # Refresh the list
-        else:
-            CTkMessagebox(master=self, title="Error", message=f"No se pudo actualizar el producto '{name}'. Ya existe otro producto con ese nombre.").get()
 
     def cancel_edit_event(self):
         self.selected_product_id = None
@@ -443,13 +496,14 @@ class App(ctk.CTk):
         self.product_name_entry.delete(0, ctk.END)
         self.product_price_entry.delete(0, ctk.END)
         self.product_stock_entry.delete(0, ctk.END)
+        self.product_category_option.set("Pizzas") # Reset to default
         
         self.add_product_button.configure(state="normal")
         self.save_product_button.configure(state="disabled")
         self.cancel_edit_button.configure(state="disabled")
 
     def select_product_for_edit(self, product):
-        product_id, name, price, stock = product
+        product_id, name, price, stock, category = product
         
         self.product_name_entry.delete(0, ctk.END)
         self.product_name_entry.insert(0, name)
@@ -459,6 +513,12 @@ class App(ctk.CTk):
         
         self.product_stock_entry.delete(0, ctk.END)
         self.product_stock_entry.insert(0, stock)
+
+        # Set dropdown value
+        if category in self.product_categories:
+            self.product_category_option.set(category)
+        else:
+            self.product_category_option.set("Pizzas") # Fallback to Pizzas if something else is in the DB
         
         # Store the id of the product being edited
         self.selected_product_id = product_id
@@ -476,20 +536,22 @@ class App(ctk.CTk):
         # Add headers to the product list
         ctk.CTkLabel(self.product_list_frame, text="ID", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, padx=5, pady=2)
         ctk.CTkLabel(self.product_list_frame, text="Nombre", font=ctk.CTkFont(weight="bold")).grid(row=0, column=1, padx=5, pady=2)
-        ctk.CTkLabel(self.product_list_frame, text="Precio", font=ctk.CTkFont(weight="bold")).grid(row=0, column=2, padx=5, pady=2)
-        ctk.CTkLabel(self.product_list_frame, text="Stock", font=ctk.CTkFont(weight="bold")).grid(row=0, column=3, padx=5, pady=2)
-        ctk.CTkLabel(self.product_list_frame, text="Acciones", font=ctk.CTkFont(weight="bold")).grid(row=0, column=4, padx=5, pady=2)
+        ctk.CTkLabel(self.product_list_frame, text="Categoría", font=ctk.CTkFont(weight="bold")).grid(row=0, column=2, padx=5, pady=2)
+        ctk.CTkLabel(self.product_list_frame, text="Precio", font=ctk.CTkFont(weight="bold")).grid(row=0, column=3, padx=5, pady=2)
+        ctk.CTkLabel(self.product_list_frame, text="Stock", font=ctk.CTkFont(weight="bold")).grid(row=0, column=4, padx=5, pady=2)
+        ctk.CTkLabel(self.product_list_frame, text="Acciones", font=ctk.CTkFont(weight="bold")).grid(row=0, column=5, padx=5, pady=2)
         
         products = database.get_products()
         for i, product in enumerate(products):
-            product_id, name, price, stock = product
+            product_id, name, price, stock, category = product
             ctk.CTkLabel(self.product_list_frame, text=product_id).grid(row=i+1, column=0, padx=5, pady=2)
             ctk.CTkLabel(self.product_list_frame, text=name).grid(row=i+1, column=1, padx=5, pady=2)
-            ctk.CTkLabel(self.product_list_frame, text=f"{price:.2f}").grid(row=i+1, column=2, padx=5, pady=2)
-            ctk.CTkLabel(self.product_list_frame, text=stock).grid(row=i+1, column=3, padx=5, pady=2)
+            ctk.CTkLabel(self.product_list_frame, text=category if category else "Sin Categoría").grid(row=i+1, column=2, padx=5, pady=2)
+            ctk.CTkLabel(self.product_list_frame, text=f"{price:.2f}").grid(row=i+1, column=3, padx=5, pady=2)
+            ctk.CTkLabel(self.product_list_frame, text=stock).grid(row=i+1, column=4, padx=5, pady=2)
 
             edit_button = ctk.CTkButton(self.product_list_frame, text="Editar", command=lambda p=product: self.select_product_for_edit(p))
-            edit_button.grid(row=i+1, column=4, padx=5, pady=2)
+            edit_button.grid(row=i+1, column=5, padx=5, pady=2)
     
     def edit_order_event(self, order_data):
         # Open a new window for editing an order
@@ -551,7 +613,6 @@ class App(ctk.CTk):
         
         if payment_method:
             database.update_order_status_and_payment_method(order_id, 1, payment_method) # Set status to completed
-            CTkMessagebox(master=self, title="Éxito", message=f"Pedido #{order_id} cerrado con éxito.").get()
             self.load_orders() # Refresh pending orders
             self.load_sales_summary() # Refresh sales summary
 
@@ -571,12 +632,10 @@ class App(ctk.CTk):
     def export_and_clear_orders_event(self):
         pending_orders = database.get_orders(status=0)
         if pending_orders:
-            CTkMessagebox(master=self, title="Error", message="No se pueden exportar los pedidos mientras haya pedidos pendientes. Por favor, cierre todos los pedidos antes de exportar.", icon="warning").get()
             return
 
         completed_orders = database.get_orders(status=1)
         if not completed_orders:
-            CTkMessagebox(master=self, title="Info", message="No hay pedidos completados para exportar.").get()
             return
 
         # Create csv directory if it doesn't exist
@@ -608,14 +667,11 @@ class App(ctk.CTk):
             
             # If CSV generation is successful, clear the orders
             if database.clear_all_orders():
-                CTkMessagebox(master=self, title="Éxito", message=f"Pedidos exportados a '{filename}' y borrados de la base de datos con éxito.").get()
                 self.load_orders()
                 self.load_sales_summary()
-            else:
-                CTkMessagebox(master=self, title="Error", message="Los pedidos fueron exportados, pero no se pudieron borrar de la base de datos.", icon="cancel").get()
 
         except Exception as e:
-            CTkMessagebox(master=self, title="Error", message=f"No se pudo generar el archivo CSV: {e}", icon="cancel").get()
+            print(f"Error: {e}")
 
 
     def load_sales_summary(self):

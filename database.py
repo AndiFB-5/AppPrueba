@@ -12,9 +12,16 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             price REAL NOT NULL,
-            stock INTEGER NOT NULL
+            stock INTEGER NOT NULL,
+            category TEXT
         )
     """)
+
+    # Add category column to products table if it doesn't exist (for backward compatibility)
+    try:
+        c.execute("SELECT category FROM products LIMIT 1")
+    except sqlite3.OperationalError:
+        c.execute("ALTER TABLE products ADD COLUMN category TEXT")
 
     # Create orders table
     # status: 0 for pending, 1 for completed, 2 for cancelled
@@ -61,11 +68,11 @@ def init_db():
     conn.commit()
     conn.close()
 
-def add_product(name, price, stock):
+def add_product(name, price, stock, category="Sin Categoría"):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", (name, price, stock))
+        c.execute("INSERT INTO products (name, price, stock, category) VALUES (?, ?, ?, ?)", (name, price, stock, category))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -77,7 +84,7 @@ def add_product(name, price, stock):
 def get_products():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
-    c.execute("SELECT id, name, price, stock FROM products")
+    c.execute("SELECT id, name, price, stock, category FROM products")
     products = c.fetchall()
     conn.close()
     return products
@@ -89,11 +96,11 @@ def update_product_stock(product_id, new_stock):
     conn.commit()
     conn.close()
 
-def update_product(product_id, name, price, stock):
+def update_product(product_id, name, price, stock, category="Sin Categoría"):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     try:
-        c.execute("UPDATE products SET name = ?, price = ?, stock = ? WHERE id = ?", (name, price, stock, product_id))
+        c.execute("UPDATE products SET name = ?, price = ?, stock = ?, category = ? WHERE id = ?", (name, price, stock, category, product_id))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
