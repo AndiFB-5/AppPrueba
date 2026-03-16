@@ -106,6 +106,7 @@ class CreateOrderWindow(ctk.CTkToplevel):
         # --- Product List ---
         products = database.get_products()
         self.product_labels = {} # To update quantity labels
+        self.product_name_labels = {} # To update name/stock labels
         
         # Group products by category
         categories = {}
@@ -136,47 +137,54 @@ class CreateOrderWindow(ctk.CTkToplevel):
                 product_frame.grid(row=row_idx, column=col_idx, padx=2, pady=1, sticky="nsew")
                 product_frame.grid_columnconfigure(0, weight=1)
                 
-                # Only show the name, very compact
-                name_label = ctk.CTkLabel(product_frame, text=name, font=ctk.CTkFont(size=11, weight="bold"), anchor="w")
-                name_label.grid(row=0, column=0, sticky="w", padx=4, pady=2)
-                
                 initial_quantity = self.order_items.get(product_id, {}).get("quantity", 0)
-                available_stock = stock + initial_quantity
+                total_pool = stock + initial_quantity # Total available for this session
+
+                # Only show the name, very compact
+                display_text = f"{name} ({stock})" if stock < 5 else name
+                text_color = "red" if stock < 5 else None
+                name_label = ctk.CTkLabel(product_frame, text=display_text, font=ctk.CTkFont(size=11, weight="bold"), anchor="w", text_color=text_color)
+                name_label.grid(row=0, column=0, sticky="w", padx=4, pady=2)
+                self.product_name_labels[product_id] = name_label
 
                 quantity_frame = ctk.CTkFrame(product_frame, fg_color="transparent")
                 quantity_frame.grid(row=0, column=1, sticky="e", padx=2)
 
-                def create_callbacks(pid, pname, pprice, pstock, qlabel):
+                def create_callbacks(pid, pname, pprice, ptotal_pool, qlabel, nlabel):
+                    # Get the default text color based on the current theme
+                    default_color = nlabel.cget("text_color")
+                    
+                    def update_product_display():
+                        current_qty = self.order_items.get(pid, {}).get("quantity", 0)
+                        remaining = ptotal_pool - current_qty
+                        if remaining < 5:
+                            nlabel.configure(text=f"{pname} ({remaining})", text_color="red")
+                        else:
+                            nlabel.configure(text=pname, text_color=default_color)
+                        qlabel.configure(text=str(current_qty))
+
                     def increment(event=None):
                         current_quantity = self.order_items.get(pid, {}).get("quantity", 0)
-                        
-                        adjusted_stock = pstock
-                        if self.is_edit_mode:
-                            for item in self.order_data['items']:
-                                if item['product_id'] == pid:
-                                    adjusted_stock += item['quantity']
-                                    break
-                        
-                        if current_quantity < adjusted_stock:
+                        if current_quantity < ptotal_pool:
                             if pid not in self.order_items:
                                 self.order_items[pid] = {"name": pname, "quantity": 0, "price": pprice}
                             self.order_items[pid]["quantity"] += 1
-                            qlabel.configure(text=str(self.order_items[pid]["quantity"]))
+                            update_product_display()
                             self.update_order_summary()
 
                     def decrement(event=None):
                         if pid in self.order_items and self.order_items[pid]["quantity"] > 0:
                             self.order_items[pid]["quantity"] -= 1
-                            qlabel.configure(text=str(self.order_items[pid]["quantity"]))
                             if self.order_items[pid]["quantity"] == 0:
                                 del self.order_items[pid]
+                            update_product_display()
                             self.update_order_summary()
                     return increment, decrement
 
                 quantity_label = ctk.CTkLabel(quantity_frame, text=str(initial_quantity), width=20, font=ctk.CTkFont(size=11, weight="bold"))
                 self.product_labels[product_id] = quantity_label
                 
-                increment_callback, decrement_callback = create_callbacks(product_id, name, price, stock, quantity_label)
+                increment_callback, decrement_callback = create_callbacks(product_id, name, price, total_pool, quantity_label, name_label)
 
                 # Bind events to every part of the card
                 for widget in [product_frame, name_label, quantity_frame, quantity_label]:
