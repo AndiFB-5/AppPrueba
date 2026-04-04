@@ -7,13 +7,14 @@ from datetime import datetime
 import platform
 import subprocess
 from PIL import Image
+from tkinter import messagebox
 
 class PaymentMethodDialog(ctk.CTkToplevel):
     def __init__(self, master):
         super().__init__(master)
 
         self.title("Seleccionar Método de Pago")
-        self.geometry("300x150")
+        self.geometry("300x200")
         self.master = master
         self.result = None
 
@@ -27,6 +28,9 @@ class PaymentMethodDialog(ctk.CTkToplevel):
 
         self.radio_transfer = ctk.CTkRadioButton(self, text="Transferencia", variable=self.payment_method_var, value="Transferencia")
         self.radio_transfer.pack(pady=5)
+
+        self.radio_300 = ctk.CTkRadioButton(self, text="300", variable=self.payment_method_var, value="300")
+        self.radio_300.pack(pady=5)
 
         self.ok_button = ctk.CTkButton(self, text="Aceptar", command=self.ok_event)
         self.ok_button.pack(pady=10)
@@ -77,9 +81,24 @@ class CreateOrderWindow(ctk.CTkToplevel):
             ctk.CTkLabel(top_frame, text="Nombre del Cliente:").pack(side="left", padx=(10,0))
             self.customer_name_entry = ctk.CTkEntry(top_frame, placeholder_text="Nombre")
             self.customer_name_entry.pack(side="left", fill="x", expand=True, padx=10)
+            
             self.es_socio_var = ctk.IntVar()
             self.socio_checkbox = ctk.CTkCheckBox(top_frame, text="Socio", variable=self.es_socio_var, command=self.update_order_summary)
             self.socio_checkbox.pack(side="left", padx=10)
+
+            # --- Payment Method Selection (Integrated) ---
+            self.payment_method_var = ctk.StringVar(value="") # Empty by default to force selection
+            
+            self.payment_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+            self.payment_frame.pack(side="left", padx=10)
+            
+            ctk.CTkLabel(self.payment_frame, text="Pago:").pack(side="left", padx=5)
+            self.radio_cash = ctk.CTkRadioButton(self.payment_frame, text="Efectivo", variable=self.payment_method_var, value="Efectivo")
+            self.radio_cash.pack(side="left", padx=5)
+            self.radio_transfer = ctk.CTkRadioButton(self.payment_frame, text="Transf.", variable=self.payment_method_var, value="Transferencia")
+            self.radio_transfer.pack(side="left", padx=5)
+            self.radio_300 = ctk.CTkRadioButton(self.payment_frame, text="300", variable=self.payment_method_var, value="300")
+            self.radio_300.pack(side="left", padx=5)
         else:
             ctk.CTkLabel(top_frame, text=f"Cliente: {self.order_data.get('customer_name', 'N/A')}", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=10)
             self.es_socio_var = ctk.IntVar(value=self.order_data.get('es_socio', 0))
@@ -205,6 +224,8 @@ class CreateOrderWindow(ctk.CTkToplevel):
         # --- Buttons ---
         confirm_text = "Confirmar Cambios" if self.is_edit_mode else "Confirmar Pedido"
         ctk.CTkButton(buttons_frame, text=confirm_text, command=self.confirm_action).pack(side="right", padx=5)
+        if not self.is_edit_mode:
+            ctk.CTkButton(buttons_frame, text="Confirmar y Cerrar", command=lambda: self.confirm_action(close_order=True), fg_color="green", hover_color="#228b22").pack(side="right", padx=5)
         ctk.CTkButton(buttons_frame, text="Cancelar", command=self.close_window).pack(side="right", padx=5)
 
         self.update_order_summary()
@@ -235,7 +256,7 @@ class CreateOrderWindow(ctk.CTkToplevel):
         self.total_price_label.configure(text=f"Total: ${total_price:.2f}")
         self.summary_text.configure(state="disabled")
 
-    def confirm_action(self):
+    def confirm_action(self, close_order=False):
         product_items_for_db = []
         for pid, item in self.order_items.items():
             if item["quantity"] > 0:
@@ -247,6 +268,7 @@ class CreateOrderWindow(ctk.CTkToplevel):
         # Reset visual feedback
         if not self.is_edit_mode:
             self.customer_name_entry.configure(border_color=["#979DA2", "#565B5E"]) # Default colors
+            self.payment_frame.configure(fg_color="transparent")
 
         if self.is_edit_mode:
             if not product_items_for_db:
@@ -268,14 +290,30 @@ class CreateOrderWindow(ctk.CTkToplevel):
                 # for now let's just focus on the name entry which is the most common miss
                 valid = False
 
+            status = 0
+            payment_method = self.payment_method_var.get()
+            
+            if close_order:
+                if not payment_method:
+                    # Highlight payment selection if missing
+                    self.payment_frame.configure(fg_color="#3B0000") # Dark red background for feedback
+                    valid = False
+                else:
+                    status = 1
+
             if valid:
-                order_id = database.add_order(product_items_for_db, customer_name, es_socio)
+                order_id = database.add_order(product_items_for_db, customer_name, es_socio, status, payment_method)
                 if order_id is not None:
                     success = True
         
         if success:
-            self.master.load_orders()
-            self.master.load_products()
+            # Mark all tabs as needing refresh
+            for tab in self.master.needs_refresh:
+                self.master.needs_refresh[tab] = True
+            
+            # Only refresh the CURRENTLY VISIBLE tab to keep response fast
+            self.master.on_tab_change()
+            
             self.close_window()
         
     def close_window(self):
@@ -313,8 +351,15 @@ class App(ctk.CTk):
         self.sidebar_image_label = ctk.CTkLabel(self.sidebar_frame, text="", image=self.sidebar_image)
         self.sidebar_image_label.grid(row=4, column=0, pady=(30, 0), sticky="n") # Adjust row and pady as needed
 
+        # Performance optimization: Refresh flags
+        self.needs_refresh = {
+            "Productos": True,
+            "Pedidos": True,
+            "Resumen de Ventas": True
+        }
+
         # Create tabview
-        self.tabview = ctk.CTkTabview(self)
+        self.tabview = ctk.CTkTabview(self, command=self.on_tab_change)
         self.tabview.grid(row=0, column=1, padx=(20, 0), pady=(20, 0), sticky="nsew")
         self.tabview.add("Productos")
         self.tabview.add("Pedidos")
@@ -399,6 +444,12 @@ class App(ctk.CTk):
 
         self.total_cash_sales_label = ctk.CTkLabel(self.sales_frame, text="Total en Efectivo: $0.00", font=ctk.CTkFont(size=20))
         self.total_cash_sales_label.pack(pady=10)
+
+        self.total_transfer_sales_label = ctk.CTkLabel(self.sales_frame, text="Total Transferencias: $0.00", font=ctk.CTkFont(size=20))
+        self.total_transfer_sales_label.pack(pady=10)
+
+        self.total_300_sales_label = ctk.CTkLabel(self.sales_frame, text="Total en 300: $0.00", font=ctk.CTkFont(size=20))
+        self.total_300_sales_label.pack(pady=10)
 
         self.export_button = ctk.CTkButton(self.sales_frame, text="Exportar y Limpiar Pedidos", command=self.export_and_clear_orders_event)
         self.export_button.pack(pady=10)
@@ -640,10 +691,12 @@ class App(ctk.CTk):
     def export_and_clear_orders_event(self):
         pending_orders = database.get_orders(status=0)
         if pending_orders:
+            messagebox.showwarning("Atención", "No se puede exportar: Todavía hay pedidos PENDIENTES. Ciérralos o cancélalos antes de limpiar la caja.")
             return
 
         completed_orders = database.get_orders(status=1)
         if not completed_orders:
+            messagebox.showinfo("Info", "No hay pedidos completados para exportar hoy.")
             return
 
         # Create csv directory if it doesn't exist
@@ -675,8 +728,13 @@ class App(ctk.CTk):
             
             # If CSV generation is successful, clear the orders
             if database.clear_all_orders():
-                self.load_orders()
-                self.load_sales_summary()
+                # Mark all tabs as needing refresh
+                for tab in self.needs_refresh:
+                    self.needs_refresh[tab] = True
+                
+                # Update current visible tab
+                self.on_tab_change()
+                print(f"[SUCCESS] Pedidos exportados a {filename} y base de datos limpiada.")
 
         except Exception as e:
             print(f"Error: {e}")
@@ -685,17 +743,28 @@ class App(ctk.CTk):
     def load_sales_summary(self):
         total_sales = database.get_total_sales()
         total_cash_sales = database.get_total_sales_by_payment_method("Efectivo")
+        total_transfer_sales = database.get_total_sales_by_payment_method("Transferencia")
+        total_300_sales = database.get_total_sales_by_payment_method("300")
+        
         self.total_sales_label.configure(text=f"Total de Ventas: ${total_sales:.2f}")
         self.total_cash_sales_label.configure(text=f"Total en Efectivo: ${total_cash_sales:.2f}")
+        self.total_transfer_sales_label.configure(text=f"Total Transferencias: ${total_transfer_sales:.2f}")
+        self.total_300_sales_label.configure(text=f"Total en 300: ${total_300_sales:.2f}")
+
+    def on_tab_change(self):
+        tab_name = self.tabview.get()
+        if self.needs_refresh.get(tab_name):
+            if tab_name == "Productos":
+                self.load_products()
+            elif tab_name == "Pedidos":
+                self.load_orders()
+            elif tab_name == "Resumen de Ventas":
+                self.load_sales_summary()
+            self.needs_refresh[tab_name] = False
 
     def change_tab(self, tab_name):
         self.tabview.set(tab_name)
-        if tab_name == "Productos":
-            self.load_products()
-        elif tab_name == "Pedidos":
-            self.load_orders()
-        elif tab_name == "Resumen de Ventas":
-            self.load_sales_summary()
+        self.on_tab_change()
 
 
 if __name__ == "__main__":
