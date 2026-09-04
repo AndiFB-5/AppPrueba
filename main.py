@@ -77,28 +77,26 @@ class CreateOrderWindow(ctk.CTkToplevel):
         top_frame = ctk.CTkFrame(self)
         top_frame.pack(fill="x", padx=10, pady=(10,0))
         
+        # --- Common variables ---
+        initial_payment = ""
+        if self.is_edit_mode:
+            initial_payment = self.order_data.get('metodo_pago', '')
+            if initial_payment is None:
+                initial_payment = ""
+        self.payment_method_var = ctk.StringVar(value=initial_payment)
+
         if not self.is_edit_mode:
             ctk.CTkLabel(top_frame, text="Nombre del Cliente:").pack(side="left", padx=(10,0))
-            self.customer_name_entry = ctk.CTkEntry(top_frame, placeholder_text="Nombre")
-            self.customer_name_entry.pack(side="left", fill="x", expand=True, padx=10)
+            self.customer_name_entry = ctk.CTkEntry(top_frame, placeholder_text="Nombre", width=140)
+            self.customer_name_entry.pack(side="left", padx=10)
             
             self.es_socio_var = ctk.IntVar()
             self.socio_checkbox = ctk.CTkCheckBox(top_frame, text="Socio", variable=self.es_socio_var, command=self.update_order_summary)
             self.socio_checkbox.pack(side="left", padx=10)
 
-            # --- Payment Method Selection (Integrated) ---
-            self.payment_method_var = ctk.StringVar(value="") # Empty by default to force selection
-            
-            self.payment_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
-            self.payment_frame.pack(side="left", padx=10)
-            
-            ctk.CTkLabel(self.payment_frame, text="Pago:").pack(side="left", padx=5)
-            self.radio_cash = ctk.CTkRadioButton(self.payment_frame, text="Efectivo", variable=self.payment_method_var, value="Efectivo")
-            self.radio_cash.pack(side="left", padx=5)
-            self.radio_transfer = ctk.CTkRadioButton(self.payment_frame, text="Transf.", variable=self.payment_method_var, value="Transferencia")
-            self.radio_transfer.pack(side="left", padx=5)
-            self.radio_300 = ctk.CTkRadioButton(self.payment_frame, text="300", variable=self.payment_method_var, value="300")
-            self.radio_300.pack(side="left", padx=5)
+            self.es_barra_var = ctk.IntVar()
+            self.barra_checkbox = ctk.CTkCheckBox(top_frame, text="Es Barra", variable=self.es_barra_var, command=self.toggle_barra_event)
+            self.barra_checkbox.pack(side="left", padx=10)
         else:
             ctk.CTkLabel(top_frame, text=f"Cliente: {self.order_data.get('customer_name', 'N/A')}", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=10)
             self.es_socio_var = ctk.IntVar(value=self.order_data.get('es_socio', 0))
@@ -121,6 +119,18 @@ class CreateOrderWindow(ctk.CTkToplevel):
 
         buttons_frame = ctk.CTkFrame(self)
         buttons_frame.pack(fill="x", padx=10, pady=(0, 10))
+
+        # --- Payment Method Selection (Integrated at bottom-left) ---
+        self.payment_frame = ctk.CTkFrame(buttons_frame, fg_color="transparent")
+        self.payment_frame.pack(side="left", padx=10)
+        
+        ctk.CTkLabel(self.payment_frame, text="Pago:").pack(side="left", padx=5)
+        self.radio_cash = ctk.CTkRadioButton(self.payment_frame, text="Efectivo", variable=self.payment_method_var, value="Efectivo")
+        self.radio_cash.pack(side="left", padx=5)
+        self.radio_transfer = ctk.CTkRadioButton(self.payment_frame, text="Transf.", variable=self.payment_method_var, value="Transferencia")
+        self.radio_transfer.pack(side="left", padx=5)
+        self.radio_300 = ctk.CTkRadioButton(self.payment_frame, text="300", variable=self.payment_method_var, value="300")
+        self.radio_300.pack(side="left", padx=5)
 
         # --- Product List ---
         products = database.get_products()
@@ -223,10 +233,9 @@ class CreateOrderWindow(ctk.CTkToplevel):
 
         # --- Buttons ---
         confirm_text = "Confirmar Cambios" if self.is_edit_mode else "Confirmar Pedido"
-        ctk.CTkButton(buttons_frame, text=confirm_text, command=self.confirm_action).pack(side="right", padx=5)
-        if not self.is_edit_mode:
-            ctk.CTkButton(buttons_frame, text="Confirmar y Cerrar", command=lambda: self.confirm_action(close_order=True), fg_color="green", hover_color="#228b22").pack(side="right", padx=5)
-        ctk.CTkButton(buttons_frame, text="Cancelar", command=self.close_window).pack(side="right", padx=5)
+        ctk.CTkButton(buttons_frame, text=confirm_text, command=self.confirm_action).pack(side="right", padx=2)
+        ctk.CTkButton(buttons_frame, text="Confirmar y Cerrar", command=lambda: self.confirm_action(close_order=True), fg_color="green", hover_color="#228b22").pack(side="right", padx=2)
+        ctk.CTkButton(buttons_frame, text="Cancelar", command=self.close_window).pack(side="right", padx=2)
 
         self.update_order_summary()
         
@@ -264,18 +273,27 @@ class CreateOrderWindow(ctk.CTkToplevel):
         
         success = False
         es_socio = self.es_socio_var.get()
+        payment_method = self.payment_method_var.get()
         
         # Reset visual feedback
         if not self.is_edit_mode:
             self.customer_name_entry.configure(border_color=["#979DA2", "#565B5E"]) # Default colors
-            self.payment_frame.configure(fg_color="transparent")
+        self.payment_frame.configure(fg_color="transparent")
 
         if self.is_edit_mode:
-            if not product_items_for_db:
-                database.update_order_status_and_payment_method(self.order_data['id'], 2, None) # 2 = cancelled
-                success = True
-            else:
-                success = database.update_order(self.order_data['id'], product_items_for_db, self.order_data, es_socio)
+            valid = True
+            if close_order and not payment_method:
+                self.payment_frame.configure(fg_color="#3B0000") # Dark red background for feedback
+                valid = False
+                
+            if valid:
+                if not product_items_for_db:
+                    database.update_order_status_and_payment_method(self.order_data['id'], 2, None) # 2 = cancelled
+                    success = True
+                else:
+                    success = database.update_order(self.order_data['id'], product_items_for_db, self.order_data, es_socio)
+                    if success and close_order:
+                        database.update_order_status_and_payment_method(self.order_data['id'], 1, payment_method)
         else:
             customer_name = self.customer_name_entry.get()
             
@@ -291,7 +309,6 @@ class CreateOrderWindow(ctk.CTkToplevel):
                 valid = False
 
             status = 0
-            payment_method = self.payment_method_var.get()
             
             if close_order:
                 if not payment_method:
@@ -319,6 +336,15 @@ class CreateOrderWindow(ctk.CTkToplevel):
     def close_window(self):
         self.grab_release()
         self.destroy()
+
+    def toggle_barra_event(self):
+        if self.es_barra_var.get() == 1:
+            self.customer_name_entry.delete(0, ctk.END)
+            self.customer_name_entry.insert(0, "Barra")
+            self.customer_name_entry.configure(state="disabled")
+        else:
+            self.customer_name_entry.configure(state="normal")
+            self.customer_name_entry.delete(0, ctk.END)
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -368,9 +394,10 @@ class App(ctk.CTk):
         self.tabview.tab("Pedidos").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Resumen de Ventas").grid_columnconfigure(0, weight=1)
 
-        # =========================================================================================================
-        # Productos Tab
-        # =========================================================================================================
+        # Trigger initial tab build
+        self.on_tab_change()
+
+    def build_products_tab(self):
         self.products_frame = ctk.CTkFrame(self.tabview.tab("Productos"))
         self.products_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -411,15 +438,35 @@ class App(ctk.CTk):
 
         self.selected_product_id = None
 
+        # Frame de ordenamiento
+        sorting_frame = ctk.CTkFrame(self.products_frame, fg_color="transparent")
+        sorting_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=(5, 0), sticky="ew")
+        
+        ctk.CTkLabel(sorting_frame, text="Ordenar por:", font=ctk.CTkFont(size=12)).pack(side="left", padx=5)
+        self.product_sort_options = [
+            "Categoría",
+            "Nombre",
+            "Precio (Menor a Mayor)",
+            "Precio (Mayor a Menor)",
+            "Stock (Menor a Mayor)"
+        ]
+        self.product_sort_option = ctk.CTkOptionMenu(
+            sorting_frame, 
+            values=self.product_sort_options, 
+            command=lambda val: self.load_products()
+        )
+        self.product_sort_option.pack(side="left", padx=5)
+        self.product_sort_option.set("Categoría") # Default sorting
+
         # Frame for product list
         self.product_list_frame = ctk.CTkScrollableFrame(self.products_frame, label_text="Lista de Productos")
-        self.product_list_frame.grid(row=5, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
-        self.products_frame.grid_rowconfigure(5, weight=1) # Make the product list frame expand
+        self.product_list_frame.grid(row=6, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        self.products_frame.grid_rowconfigure(6, weight=1) # Make the product list frame expand
         self.products_frame.grid_columnconfigure(1, weight=1) # Make the entry fields expand
 
-        # =========================================================================================================
-        # Pedidos Tab
-        # =========================================================================================================
+        self.load_products()
+
+    def build_orders_tab(self):
         self.orders_frame = ctk.CTkFrame(self.tabview.tab("Pedidos"))
         self.orders_frame.pack(fill="both", expand=True, padx=10, pady=10)
         self.orders_frame.grid_rowconfigure(1, weight=1) # Make the product list frame expand
@@ -431,9 +478,9 @@ class App(ctk.CTk):
         self.order_list_frame = ctk.CTkScrollableFrame(self.orders_frame, label_text="Pedidos Pendientes")
         self.order_list_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
-        # =========================================================================================================
-        # Resumen de Ventas Tab
-        # =========================================================================================================
+        self.load_orders()
+
+    def build_sales_tab(self):
         self.sales_frame = ctk.CTkFrame(self.tabview.tab("Resumen de Ventas"))
         self.sales_frame.pack(fill="both", expand=True, padx=10, pady=10)
         self.sales_label = ctk.CTkLabel(self.sales_frame, text="Contenido de Resumen de Ventas")
@@ -457,9 +504,7 @@ class App(ctk.CTk):
         self.open_csv_folder_button = ctk.CTkButton(self.sales_frame, text="Abrir Carpeta de CSVs", command=self.open_csv_folder)
         self.open_csv_folder_button.pack(pady=10)
 
-        self.load_products() # Load products when app starts
-        self.load_orders() # Load orders when app starts
-        self.load_sales_summary() # Load sales summary when app starts
+        self.load_sales_summary()
     
     def add_product_event(self):
         name = self.product_name_entry.get()
@@ -588,6 +633,8 @@ class App(ctk.CTk):
         self.cancel_edit_button.configure(state="normal")
         
     def load_products(self):
+        if not hasattr(self, 'product_list_frame') or not self.product_list_frame.winfo_exists():
+            return
         # Clear existing widgets in the product list frame
         for widget in self.product_list_frame.winfo_children():
             widget.destroy()
@@ -600,7 +647,11 @@ class App(ctk.CTk):
         ctk.CTkLabel(self.product_list_frame, text="Stock", font=ctk.CTkFont(weight="bold")).grid(row=0, column=4, padx=5, pady=2)
         ctk.CTkLabel(self.product_list_frame, text="Acciones", font=ctk.CTkFont(weight="bold")).grid(row=0, column=5, padx=5, pady=2)
         
-        products = database.get_products()
+        sort_by = "Categoría"
+        if hasattr(self, 'product_sort_option'):
+            sort_by = self.product_sort_option.get()
+
+        products = database.get_products(order_by=sort_by)
         for i, product in enumerate(products):
             product_id, name, price, stock, category = product
             ctk.CTkLabel(self.product_list_frame, text=product_id).grid(row=i+1, column=0, padx=5, pady=2)
@@ -630,6 +681,8 @@ class App(ctk.CTk):
         self.order_window = CreateOrderWindow(self)
 
     def load_orders(self):
+        if not hasattr(self, 'order_list_frame') or not self.order_list_frame.winfo_exists():
+            return
         # This method will be implemented later to load and display pending orders
         # Clear existing widgets in the order list frame
         for widget in self.order_list_frame.winfo_children():
@@ -657,7 +710,7 @@ class App(ctk.CTk):
             ctk.CTkLabel(self.order_list_frame, text=items_str, wraplength=200, justify="left").grid(row=i+1, column=1, padx=5, pady=2, sticky="w")
             ctk.CTkLabel(self.order_list_frame, text=f"${total_price:.2f}").grid(row=i+1, column=2, padx=5, pady=2, sticky="w")
             
-            actions_frame = ctk.CTkFrame(self.order_list_frame)
+            actions_frame = ctk.CTkFrame(self.order_list_frame, fg_color="transparent")
             actions_frame.grid(row=i+1, column=3, padx=5, pady=2, sticky="ew")
 
             edit_button = ctk.CTkButton(actions_frame, text="Editar", command=lambda order_data=order: self.edit_order_event(order_data))
@@ -707,24 +760,45 @@ class App(ctk.CTk):
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         filename = os.path.join(csv_dir, f"pedidos_{timestamp}.csv")
 
+        import json
+
         try:
             with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = ['order_id', 'customer_name', 'order_date', 'metodo_pago', 'product_name', 'quantity', 'item_price', 'total_order_price']
+                fieldnames = ['order_id', 'customer_name', 'order_date', 'metodo_pago', 'productos', 'total_order_price']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-                writer.writeheader()
+                # No header row printed per user requirement
                 for order in completed_orders:
+                    es_socio = order.get('es_socio') == 1
+                    
+                    productos_list = []
+                    total_calculated = 0.0
+                    
                     for item in order['items']:
-                        writer.writerow({
-                            'order_id': order['id'],
-                            'customer_name': order.get('customer_name', 'N/A'),
-                            'order_date': order['order_date'],
-                            'metodo_pago': order.get('metodo_pago', 'N/A'),
-                            'product_name': item['product_name'],
-                            'quantity': item['quantity'],
-                            'item_price': item['item_price'],
-                            'total_order_price': order['total_price']
+                        unit_price = item['item_price']
+                        if es_socio:
+                            unit_price = round(unit_price * 0.85, 2)
+                        
+                        line_total = round(item['quantity'] * unit_price, 2)
+                        total_calculated += line_total
+                        
+                        productos_list.append({
+                            'producto': item['product_name'],
+                            'cantidad': item['quantity'],
+                            'precio_unitario': unit_price
                         })
+                    
+                    # Round final total to 2 decimal places
+                    total_calculated = round(total_calculated, 2)
+                    
+                    writer.writerow({
+                        'order_id': order['id'],
+                        'customer_name': order.get('customer_name', 'N/A'),
+                        'order_date': order['order_date'],
+                        'metodo_pago': order.get('metodo_pago', 'N/A'),
+                        'productos': json.dumps(productos_list, ensure_ascii=False),
+                        'total_order_price': total_calculated
+                    })
             
             # If CSV generation is successful, clear the orders
             if database.clear_all_orders():
@@ -741,6 +815,8 @@ class App(ctk.CTk):
 
 
     def load_sales_summary(self):
+        if not hasattr(self, 'total_sales_label') or not self.total_sales_label.winfo_exists():
+            return
         total_sales = database.get_total_sales()
         total_cash_sales = database.get_total_sales_by_payment_method("Efectivo")
         total_transfer_sales = database.get_total_sales_by_payment_method("Transferencia")
@@ -753,14 +829,39 @@ class App(ctk.CTk):
 
     def on_tab_change(self):
         tab_name = self.tabview.get()
-        if self.needs_refresh.get(tab_name):
-            if tab_name == "Productos":
-                self.load_products()
-            elif tab_name == "Pedidos":
-                self.load_orders()
-            elif tab_name == "Resumen de Ventas":
-                self.load_sales_summary()
-            self.needs_refresh[tab_name] = False
+        
+        # Destroy all existing widgets inside the tabs to prevent rendering issues on macOS
+        for child in self.tabview.tab("Productos").winfo_children():
+            child.destroy()
+        for child in self.tabview.tab("Pedidos").winfo_children():
+            child.destroy()
+        for child in self.tabview.tab("Resumen de Ventas").winfo_children():
+            child.destroy()
+            
+        if tab_name == "Productos":
+            self.build_products_tab()
+        elif tab_name == "Pedidos":
+            self.build_orders_tab()
+        elif tab_name == "Resumen de Ventas":
+            self.build_sales_tab()
+        
+        # Force a complete layout and repaint refresh on macOS
+        # A tiny, invisible 1-pixel change triggers a Cocoa/Tkinter <Configure> event,
+        # which forces the macOS window server to correctly redraw all canvas elements.
+        try:
+            w = self.winfo_width()
+            h = self.winfo_height()
+            x = self.winfo_x()
+            y = self.winfo_y()
+            if w > 1 and h > 1:
+                self.geometry(f"{w}x{h+1}+{x}+{y}")
+                self.update_idletasks()
+                self.geometry(f"{w}x{h}+{x}+{y}")
+                self.update_idletasks()
+        except Exception:
+            # Fallback to standard updates if geometries cannot be parsed yet
+            self.update_idletasks()
+            self.update()
 
     def change_tab(self, tab_name):
         self.tabview.set(tab_name)

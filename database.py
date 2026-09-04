@@ -82,10 +82,23 @@ def add_product(name, price, stock, category="Sin Categoría"):
     except sqlite3.IntegrityError:
         return False
 
-def get_products():
+def get_products(order_by="Categoría"):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT id, name, price, stock, category FROM products")
+    
+    # Map friendly names from UI to SQL ORDER BY clauses
+    order_mapping = {
+        "Categoría": "category, name",
+        "Nombre": "name",
+        "Precio (Menor a Mayor)": "price ASC",
+        "Precio (Mayor a Menor)": "price DESC",
+        "Stock (Menor a Mayor)": "stock ASC"
+    }
+    
+    order_clause = order_mapping.get(order_by, "category, name")
+    query = f"SELECT id, name, price, stock, category FROM products ORDER BY {order_clause}"
+    
+    c.execute(query)
     return c.fetchall()
 
 def update_product_stock(product_id, new_stock):
