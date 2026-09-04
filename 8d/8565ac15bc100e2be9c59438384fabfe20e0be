@@ -1,0 +1,40 @@
+test_app.py
+  s_98dace208c2d6b::t_cd922cbf30c19f 10-22,35-36
+  s_98dace208c2d6b::t_bd077fdc83ddc8 251-253
+  s_98dace208c2d6b::t_df067caccdbb53 6-9,37-46
+  s_98dace208c2d6b::t_da2302ac613f69 1-5,66-80
+  s_98dace208c2d6b::t_7c8f2a14c8912b 233-250,254-264
+  s_98dace208c2d6b::t_2e8f04179eda27 23-34
+  s_98dace208c2d6b::t_8b39b1e9e87f16 47-65
+  s_98dace208c2d6b::t_175e71dd14087e 81-232,293-294
+  s_98dace208c2d6b::t_ea1a2f25895b09 265-292
+database.py
+  s_98dace208c2d6b::t_f997368cca3f79 85,88-101
+main.py
+  s_98dace208c2d6b::t_f997368cca3f79 397-400,441-460,463-464,467,469,481-483,507,636-637,650-654,684-685,763-764,767,770,772-776,778-788,790-801,818-819,832-864
+  s_98dace208c2d6b::t_dadfbb4656c01f 713
+  s_98dace208c2d6b::t_faf4b8fe0bc8b3 80-87
+  s_98dace208c2d6b::t_190f057425a024 339-347
+  s_98dace208c2d6b::t_6064421c851ece 276,281,284-296
+  s_98dace208c2d6b::t_d1f4c6ac5249d0 90-91
+  s_98dace208c2d6b::t_02462b4ed39a56 236-238
+  s_98dace208c2d6b::t_54843409575087 468
+  s_98dace208c2d6b::t_9b40354e5f05b3 97-99
+  s_98dace208c2d6b::t_a89a152f758c50 123-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "8d8565ac15bc100e2be9c59438384fabfe20e0be",
+  "prompts": {},
+  "sessions": {
+    "s_98dace208c2d6b": {
+      "agent_id": {
+        "tool": "gemini",
+        "id": "48d18850-28b3-47ed-a411-a976593d5e34",
+        "model": "gemini-3.5-flash"
+      },
+      "human_author": "Andres Fernandez <andres.fernandez@pedidosya.com>"
+    }
+  }
+}
