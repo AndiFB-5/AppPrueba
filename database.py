@@ -1,7 +1,9 @@
 import sqlite3
+from datetime import datetime, timezone, timedelta
 
 DATABASE_NAME = "stock_control.db"
 _conn = None
+TZ_UTC_3 = timezone(timedelta(hours=-3))
 
 def get_connection():
     global _conn
@@ -38,7 +40,7 @@ def init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            order_date TIMESTAMP DEFAULT (datetime('now', '-3 hours')),
             status INTEGER DEFAULT 0,
             customer_name TEXT
         )
@@ -117,11 +119,14 @@ def update_product(product_id, name, price, stock, category="Sin Categoría"):
     except sqlite3.IntegrityError:
         return False
 
-def add_order(product_items, customer_name, es_socio, status=0, metodo_pago=None):
+def add_order(product_items, customer_name, es_socio, status=0, metodo_pago=None, order_date=None):
     conn = get_connection()
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO orders (customer_name, es_socio, status, metodo_pago) VALUES (?, ?, ?, ?)", (customer_name, es_socio, status, metodo_pago))
+        if order_date is None:
+            order_date = datetime.now(TZ_UTC_3).strftime("%Y-%m-%d %H:%M:%S")
+        c.execute("INSERT INTO orders (order_date, customer_name, es_socio, status, metodo_pago) VALUES (?, ?, ?, ?, ?)",
+                  (order_date, customer_name, es_socio, status, metodo_pago))
         order_id = c.lastrowid
         
         for product_id, quantity, item_price in product_items:

@@ -1,0 +1,6 @@
+order_id,customer_name,MES,Fecha Miercoles,order_date,metodo_pago,product_name,quantity,item_price,Item_total,total_order_price
+46,Barra,octubre,2026-10-07 0:00:00,2026-10-07 02:57:50,Transferencia,Carne,3,3000,9000,42000
+46,Barra,octubre,2026-10-07 0:00:00,2026-10-07 02:57:50,Transferencia,Verdura,3,2000,6000,42000
+46,Barra,octubre,2026-10-07 0:00:00,2026-10-07 02:57:50,Transferencia,Fernet,1,7000,7000,42000
+46,Barra,octubre,2026-10-07 0:00:00,2026-10-07 02:57:50,Transferencia,Hnk,2,10000,20000,42000
+45,Barra,octubre,2026-10-07 0:00:00,2026-10-07 02:57:32,Transferencia,Vermut,2,9000,18000,18000

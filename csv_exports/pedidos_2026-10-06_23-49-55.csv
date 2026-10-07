@@ -1,0 +1,6 @@
+order_id,customer_name,order_date,metodo_pago,product_name,quantity,item_price,total_order_price
+44,fafa,2026-09-04 00:12:45,Transferencia,Hnk,3,10000.0,110000.0
+44,fafa,2026-09-04 00:12:45,Transferencia,4Quesos,5,16000.0,110000.0
+43,Pepe,2026-09-04 00:12:32,Efectivo,Hnk,3,10000.0,30000.0
+42,Barra,2026-09-04 00:12:23,Transferencia,Hnk,2,10000.0,23000.0
+42,Barra,2026-09-04 00:12:23,Transferencia,Carne,1,3000.0,23000.0

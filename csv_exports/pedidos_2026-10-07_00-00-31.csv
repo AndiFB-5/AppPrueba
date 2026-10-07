@@ -1,0 +1,14 @@
+order_id,customer_name,MES,Fecha Miercoles,order_date,metodo_pago,product_name,quantity,item_price,Item_total,total_order_price
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Hnk,1,10000,10000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Carne,1,3000,3000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Verdura,1,2000,2000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,4Quesos,1,16000,16000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Muzza,1,16000,16000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Napo,1,16000,16000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Fugazzeta,1,16000,16000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Vermut,1,9000,9000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Fernet,1,7000,7000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Capresse,1,2000,2000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Pollo,1,2000,2000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,300,1,16000,16000,127000
+47,Barra,octubre,2026-10-07,2026-10-07 03:00:27,Transferencia,Malrboros,1,12000,12000,127000

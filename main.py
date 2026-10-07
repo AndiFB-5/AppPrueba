@@ -3,7 +3,7 @@ import database
 
 import os
 import csv
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import platform
 import subprocess
 from PIL import Image
@@ -756,49 +756,79 @@ class App(ctk.CTk):
         csv_dir = "csv_exports"
         os.makedirs(csv_dir, exist_ok=True)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        # Generate filename with timestamp in UTC-3
+        tz_utc_3 = timezone(timedelta(hours=-3))
+        timestamp = datetime.now(tz_utc_3).strftime("%Y-%m-%d_%H-%M-%S")
         filename = os.path.join(csv_dir, f"pedidos_{timestamp}.csv")
 
-        import json
+        meses = {
+            1: 'enero', 2: 'febrero', 3: 'marzo', 4: 'abril',
+            5: 'mayo', 6: 'junio', 7: 'julio', 8: 'agosto',
+            9: 'septiembre', 10: 'octubre', 11: 'noviembre', 12: 'diciembre'
+        }
+
+        def format_num(val):
+            try:
+                val_float = float(val)
+                if val_float.is_integer():
+                    return int(val_float)
+                return round(val_float, 2)
+            except (ValueError, TypeError):
+                return val
 
         try:
             with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = ['order_id', 'customer_name', 'order_date', 'metodo_pago', 'productos', 'total_order_price']
+                fieldnames = [
+                    'order_id',
+                    'customer_name',
+                    'MES',
+                    'Fecha Miercoles',
+                    'order_date',
+                    'metodo_pago',
+                    'product_name',
+                    'quantity',
+                    'item_price',
+                    'Item_total',
+                    'total_order_price'
+                ]
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-                # No header row printed per user requirement
+                writer.writeheader()
                 for order in completed_orders:
-                    es_socio = order.get('es_socio') == 1
-                    
-                    productos_list = []
-                    total_calculated = 0.0
-                    
+                    order_date_raw = order.get('order_date', '')
+                    try:
+                        if isinstance(order_date_raw, datetime):
+                            dt = order_date_raw
+                        else:
+                            dt = datetime.fromisoformat(str(order_date_raw))
+                    except Exception:
+                        try:
+                            dt = datetime.strptime(str(order_date_raw), "%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            dt = datetime.now(tz_utc_3)
+
+                    wednesday_date = dt.date() - timedelta(days=dt.weekday() - 2)
+                    fecha_miercoles = str(wednesday_date)
+                    mes_nombre = meses.get(wednesday_date.month, '')
+
                     for item in order['items']:
-                        unit_price = item['item_price']
-                        if es_socio:
-                            unit_price = round(unit_price * 0.85, 2)
-                        
-                        line_total = round(item['quantity'] * unit_price, 2)
-                        total_calculated += line_total
-                        
-                        productos_list.append({
-                            'producto': item['product_name'],
-                            'cantidad': item['quantity'],
-                            'precio_unitario': unit_price
+                        item_price = item['item_price']
+                        quantity = item['quantity']
+                        item_total = quantity * item_price
+
+                        writer.writerow({
+                            'order_id': order['id'],
+                            'customer_name': order.get('customer_name', 'N/A'),
+                            'MES': mes_nombre,
+                            'Fecha Miercoles': fecha_miercoles,
+                            'order_date': order.get('order_date', 'N/A'),
+                            'metodo_pago': order.get('metodo_pago', 'N/A'),
+                            'product_name': item['product_name'],
+                            'quantity': quantity,
+                            'item_price': format_num(item_price),
+                            'Item_total': format_num(item_total),
+                            'total_order_price': format_num(order['total_price'])
                         })
-                    
-                    # Round final total to 2 decimal places
-                    total_calculated = round(total_calculated, 2)
-                    
-                    writer.writerow({
-                        'order_id': order['id'],
-                        'customer_name': order.get('customer_name', 'N/A'),
-                        'order_date': order['order_date'],
-                        'metodo_pago': order.get('metodo_pago', 'N/A'),
-                        'productos': json.dumps(productos_list, ensure_ascii=False),
-                        'total_order_price': total_calculated
-                    })
             
             # If CSV generation is successful, clear the orders
             if database.clear_all_orders():
