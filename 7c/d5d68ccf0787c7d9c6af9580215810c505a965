@@ -1,0 +1,59 @@
+desanidar.py
+  s_7e1dca10d26c41::t_e92927ec4dd75b 1-4,6-42,46-47,101,107-129,131-135,138-147,151,153-160,162-165,167-173,175-197
+  s_7e1dca10d26c41::t_734cfdb9054f5b 5,44-45,48-55,57-59,61-62,68,102,104,130,137,148-150,152,174
+  s_7e1dca10d26c41::t_ecee1c47b9ed85 136,161,166
+  s_7e1dca10d26c41::t_745ac0e04cbe9e 56,60,63-67,69-98
+  s_7e1dca10d26c41::t_28e62b4c956394 99-100
+  s_7e1dca10d26c41::t_dcdb24b77f402d 103,105-106
+  s_7e1dca10d26c41::t_a6211718e63604 43
+database.py
+  s_7e1dca10d26c41::t_71e93757e347fb 2,6,43
+  s_7e1dca10d26c41::t_93bd380a8d88d3 122,126-129
+main.py
+  s_7e1dca10d26c41::t_037b4ce1a64847 808
+  s_7e1dca10d26c41::t_51dba931884f65 811
+  s_7e1dca10d26c41::t_036eb36fe1f790 6
+  s_7e1dca10d26c41::t_4b15e2049f2fc7 759-761
+  s_7e1dca10d26c41::t_ae93c78e3ed05c 764-777,781-793,798-807,809-810,812-813,815-818,822-824,827-830
+  s_7e1dca10d26c41::t_5a0e6d18db93ee 796,819-821,825-826
+desanidar_pedidos.py
+  s_7e1dca10d26c41::t_23f4cd72adc09b 1-191
+test_app.py
+  s_7e1dca10d26c41::t_d0c28ea7563290 220
+  s_7e1dca10d26c41::t_68d533c04351f4 242-252,254-290,292-299
+  s_7e1dca10d26c41::t_c037830b15ea45 377-394
+  s_7e1dca10d26c41::t_614975c59a943b 88
+  s_7e1dca10d26c41::t_8434fd0cd5a686 195-207,217-219,222-223,225,227,229,232-237
+  s_7e1dca10d26c41::t_42bdfabebc5a63 143,147,165-166,171-175,184-185,191-192,194,208,210-212,214-215,224,226,228,230-231
+  s_7e1dca10d26c41::t_1a585a00be5a13 300-303,305-307,309-315
+  s_7e1dca10d26c41::t_201b099a46e6c0 291
+  s_90f49f4789fcaa::t_319a8f8f89ebcd 239-241
+csv_exports/pedidos_2026-10-06_23-49-55.csv
+  s_90f49f4789fcaa::t_7685260fd68159 1-6
+csv_exports/pedidos_2026-10-07_00-07-11.csv
+  s_7e1dca10d26c41::t_cfaaee12d13a04 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7cd5d68ccf0787c7d9c6af9580215810c505a965",
+  "prompts": {},
+  "sessions": {
+    "s_7e1dca10d26c41": {
+      "agent_id": {
+        "tool": "gemini",
+        "id": "eaf3b374-e7fe-480f-a0a7-a9766b1735e9",
+        "model": "gemini-3.8-flash"
+      },
+      "human_author": "Andres Fernandez <andres.fernandez@pedidosya.com>"
+    },
+    "s_90f49f4789fcaa": {
+      "agent_id": {
+        "tool": "gemini",
+        "id": "09d37c46-5b82-4384-9a1f-95ad15b327e7",
+        "model": "gemini-3.8-flash"
+      },
+      "human_author": "Andres Fernandez <andres.fernandez@pedidosya.com>"
+    }
+  }
+}
